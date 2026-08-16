@@ -2,7 +2,7 @@
 // Rete prima, cache come rete di scorta -> con rete vedo sempre il build nuovo
 // (il §9 del PIANO: "il telefono prende la versione nuova alla prima apertura").
 const CACHE = "allenamento";
-const FILE = ["./", "./index.html", "./manifest.json", "./icona.jpg"];
+const FILE = ["./", "./index.html", "./manifest.json", "./icona.svg"];
 
 self.addEventListener("install", e => {
   self.skipWaiting();

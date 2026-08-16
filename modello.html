@@ -3,17 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#c2410c">
+<meta name="theme-color" content="#5b45cf">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icona.jpg">
-<link rel="apple-touch-icon" href="icona.jpg">
+<link rel="icon" href="icona.svg">
+<link rel="apple-touch-icon" href="icona.svg">
 <title>Allenamento</title>
 <style>
+/* --su-acc: il testo SOPRA il colore d'accento. Al buio l'accento e' chiaro,
+   quindi il bianco sparirebbe: li' il testo va scuro. */
 :root{color-scheme:light dark;--bg:#fbfbf9;--fg:#1a1a18;--card:#fff;--bordo:#e3e3db;
-      --acc:#c2410c;--spento:#6f6f68;--ok:#15803d}
+      --acc:#5b45cf;--su-acc:#fff;--spento:#6f6f68;--ok:#15803d}
 @media(prefers-color-scheme:dark){:root{--bg:#141416;--fg:#eceae4;--card:#1e1e22;
-      --bordo:#34343c;--acc:#fb923c;--spento:#9b9b94;--ok:#4ade80}}
+      --bordo:#34343c;--acc:#a99cf5;--su-acc:#17151f;--spento:#9b9b94;--ok:#4ade80}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}   /* .riga e' display:flex e vincerebbe */
 body{margin:0 auto;max-width:34rem;font:17px/1.55 system-ui,-apple-system,sans-serif;
@@ -27,7 +29,7 @@ button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--
        border-radius:.7rem;padding:.7rem 1rem;cursor:pointer;text-align:left}
 button:active{transform:translateY(1px)}
 .grande{display:block;width:100%;padding:1.1rem;font-size:1.2rem;font-weight:600;margin:.5rem 0}
-.primario{background:var(--acc);color:#fff;border-color:transparent;text-align:center}
+.primario{background:var(--acc);color:var(--su-acc);border-color:transparent;text-align:center}
 .piccolo{padding:.45rem .8rem;font-size:.9rem}
 .riga{display:flex;gap:.5rem;flex-wrap:wrap}
 .riga>*{flex:1}
