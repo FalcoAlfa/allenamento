@@ -3,19 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#5b45cf">
+<meta name="theme-color" content="#848ccb">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icona.svg">
 <link rel="apple-touch-icon" href="icona.svg">
 <title>Allenamento</title>
 <style>
-/* --su-acc: il testo SOPRA il colore d'accento. Al buio l'accento e' chiaro,
-   quindi il bianco sparirebbe: li' il testo va scuro. */
+/* --acc e' il pervinca delle icone del telefono (#848ccb, preso dai pixel).
+   --acc-fg: lo stesso colore ma piu' scuro, per il TESTO piccolo — #848ccb su
+   bianco fa 3.2:1, va bene per un bottone grande e non per un link.
+   --su-acc: il testo SOPRA il bottone pieno. */
 :root{color-scheme:light dark;--bg:#fbfbf9;--fg:#1a1a18;--card:#fff;--bordo:#e3e3db;
-      --acc:#5b45cf;--su-acc:#fff;--spento:#6f6f68;--ok:#15803d}
+      --acc:#848ccb;--acc-fg:#4d58b3;--su-acc:#fff;--spento:#6f6f68;--ok:#15803d}
 @media(prefers-color-scheme:dark){:root{--bg:#141416;--fg:#eceae4;--card:#1e1e22;
-      --bordo:#34343c;--acc:#a99cf5;--su-acc:#17151f;--spento:#9b9b94;--ok:#4ade80}}
+      --bordo:#34343c;--acc:#848ccb;--acc-fg:#848ccb;--su-acc:#191922;
+      --spento:#9b9b94;--ok:#4ade80}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}   /* .riga e' display:flex e vincerebbe */
 body{margin:0 auto;max-width:34rem;font:17px/1.55 system-ui,-apple-system,sans-serif;
@@ -24,7 +27,7 @@ body{margin:0 auto;max-width:34rem;font:17px/1.55 system-ui,-apple-system,sans-s
 h1{font-size:1.35rem;margin:.2rem 0}
 h2{font-size:1.1rem;margin:1.4rem 0 .4rem}
 p{margin:.5rem 0}
-a{color:var(--acc)}
+a{color:var(--acc-fg)}
 button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bordo);
        border-radius:.7rem;padding:.7rem 1rem;cursor:pointer;text-align:left}
 button:active{transform:translateY(1px)}
@@ -52,7 +55,7 @@ ul{padding-left:1.2rem}
       padding:.9rem;margin:.8rem 0}
 .card h2{margin:0;font-size:1.35rem}
 svg{display:block;width:100%;height:auto;max-width:26rem;margin:.6rem auto;border-radius:.6rem}
-.cue{color:var(--acc);font-weight:600}
+.cue{color:var(--acc-fg);font-weight:600}
 .conto{font-variant-numeric:tabular-nums;font-size:3.2rem;font-weight:700;text-align:center;
        margin:.3rem 0;line-height:1.1}
 .conto.riposo{color:var(--ok)}
