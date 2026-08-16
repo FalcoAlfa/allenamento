@@ -1,0 +1,19 @@
+{
+  "name": "Allenamento",
+  "short_name": "Allenamento",
+  "lang": "it",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fbfbf9",
+  "theme_color": "#c2410c",
+  "icons": [
+    {
+      "src": "icona.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#c2410c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icona.svg">
+<link rel="apple-touch-icon" href="icona.svg">
+<title>Allenamento</title>
+<style>
+:root{color-scheme:light dark;--bg:#fbfbf9;--fg:#1a1a18;--card:#fff;--bordo:#e3e3db;
+      --acc:#c2410c;--spento:#6f6f68;--ok:#15803d}
+@media(prefers-color-scheme:dark){:root{--bg:#141416;--fg:#eceae4;--card:#1e1e22;
+      --bordo:#34343c;--acc:#fb923c;--spento:#9b9b94;--ok:#4ade80}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}   /* .riga e' display:flex e vincerebbe */
+body{margin:0 auto;max-width:34rem;font:17px/1.55 system-ui,-apple-system,sans-serif;
+     background:var(--bg);color:var(--fg);
+     padding:1rem 1rem calc(6rem + env(safe-area-inset-bottom))}
+h1{font-size:1.35rem;margin:.2rem 0}
+h2{font-size:1.1rem;margin:1.4rem 0 .4rem}
+p{margin:.5rem 0}
+a{color:var(--acc)}
+button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bordo);
+       border-radius:.7rem;padding:.7rem 1rem;cursor:pointer;text-align:left}
+button:active{transform:translateY(1px)}
+.grande{display:block;width:100%;padding:1.1rem;font-size:1.2rem;font-weight:600;margin:.5rem 0}
+.primario{background:var(--acc);color:#fff;border-color:transparent;text-align:center}
+.piccolo{padding:.45rem .8rem;font-size:.9rem}
+.riga{display:flex;gap:.5rem;flex-wrap:wrap}
+.riga>*{flex:1}
+.spento{color:var(--spento)}
+.spento a{color:inherit}
+small{font-size:.85rem}
+input,select,textarea{font:inherit;color:inherit;background:var(--card);width:100%;
+       border:1px solid var(--bordo);border-radius:.6rem;padding:.6rem}
+label{display:block;margin:.7rem 0 .2rem;font-size:.95rem}
+hr{border:0;border-top:1px solid var(--bordo);margin:1.2rem 0}
+ul{padding-left:1.2rem}
+/* --- seduta --- */
+.barra{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:.6rem;
+       background:var(--bg);padding:.5rem 0;border-bottom:1px solid var(--bordo)}
+.cron{font-variant-numeric:tabular-nums;font-size:1.3rem;font-weight:600;
+      background:none;border:0;padding:.2rem .4rem;flex:0 0 auto}
+.pausa{color:var(--acc)}
+.dove{flex:1;text-align:right;color:var(--spento);font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--bordo);border-radius:1rem;
+      padding:.9rem;margin:.8rem 0}
+.card h2{margin:0;font-size:1.35rem}
+svg{display:block;width:100%;height:auto;max-width:26rem;margin:.6rem auto;border-radius:.6rem}
+.cue{color:var(--acc);font-weight:600}
+.conto{font-variant-numeric:tabular-nums;font-size:3.2rem;font-weight:700;text-align:center;
+       margin:.3rem 0;line-height:1.1}
+.conto.riposo{color:var(--ok)}
+.conto.finito{color:var(--acc)}
+details{border-top:1px solid var(--bordo);padding:.15rem 0}
+summary{cursor:pointer;font-weight:600;padding:.45rem 0}
+details div{padding-bottom:.6rem}
+.fondo{position:fixed;left:0;right:0;bottom:0;z-index:2;display:flex;gap:.5rem;
+       background:var(--bg);border-top:1px solid var(--bordo);
+       padding:.6rem 1rem calc(.6rem + env(safe-area-inset-bottom));
+       max-width:34rem;margin:0 auto}
+.fondo button{flex:1;padding:.9rem .6rem;text-align:center}
+.fondo .primario{flex:2;font-size:1.15rem;font-weight:700}
+.tag{display:inline-block;background:var(--bg);border:1px solid var(--bordo);
+     border-radius:.5rem;padding:.1rem .45rem;font-size:.85rem;color:var(--spento)}
+.scelto{outline:2px solid var(--acc)}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--card);
+    border:1px solid var(--bordo);border-radius:.6rem;padding:.7rem;font-size:.8rem;
+    max-height:40vh;overflow:auto}
+</style>
+</head>
+<body>
+<div id="schermo"></div>
+<div id="fondo"></div>
+<script>
+const DATI = /*DATI*/;
+
+/* ------------------------------------------------------------------ base */
+
+const $ = s => document.querySelector(s);
+const SCH = $("#schermo"), FONDO = $("#fondo");
+const VELOCE = new URLSearchParams(location.search).has("veloce") ? 10 : 1;
+const vibra = p => { try { navigator.vibrate && navigator.vibrate(p); } catch (e) {} };
+const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+
+// markdown minimo: grassetto, corsivo, elenchi. Il resto dei .md non arriva qui.
+const testo = t => esc(t || "")
+  .replace(/\*\*(.+?)\*\*/gs, "<b>$1</b>")
+  .replace(/\*(.+?)\*/gs, "<i>$1</i>")
+  .replace(/\n(?=\s*(?:\d+\.|[-·]))/g, "<br>")
+  .replace(/\n\n+/g, "<p>")
+  .replace(/\n/g, " ");
+
+const mmss = s => {
+  s = Math.max(0, Math.ceil(s));
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+};
+const oggi = () => new Date().toISOString().slice(0, 10);
+const ggmm = d => d.slice(8, 10) + "/" + d.slice(5, 7);
+
+const leggi = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
+const salvaIn = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+const storico = () => leggi("sedute", []);
+
+/* Gli esercizi chiave: campo di fine seduta -> esercizi che lo allenano.
+   Trazioni e plank frontale non stanno in nessuna seduta (§6 del PIANO): restano
+   voci della tabella dei test, si compilano a mano. */
+const CHIAVE = [
+  { id: "dead_hang_s", eti: "Dead hang (s)", log: "dead hang", u: " s", k: ["comune:R5", "M:dead-hang"] },
+  { id: "negativa_s", eti: "Negativa, s di discesa", log: "negativa", u: " s", k: ["B:B3"] },
+  { id: "piegamenti", eti: "Piegamenti (ripetizioni)", log: "piegamenti", u: "", k: ["A:A4"] },
+  { id: "l_sit_s", eti: "L-sit raccolto (s)", log: "L-sit", u: " s", k: ["A:A1", "B:B1"] },
+  { id: "crow_s", eti: "Crow (s)", log: "crow", u: " s", k: ["A:A2"] },
+  { id: "mani_muro_cm", eti: "Mani-muro (cm)", log: "mani-muro", u: " cm", k: ["A:A3"] },
+];
+
+const PARAGRAFI = [["come", "Come si fa"], ["attenzione", "Attenzione a"],
+                   ["sfruttare", "Per sfruttarlo al meglio"], ["progredire", "Come progredire"],
+                   ["mattino", "Cosa cambia al mattino"]];
+
+/* ------------------------------------------------------------- rotazione */
+
+function prossime(st) {
+  const ultima = t => [...st].reverse().find(s => s.tipo === t);
+  const m = ultima("mattutina"), f = ultima("forza");
+  const ciclo = ["M1", "M2", "M3"];
+  return {
+    m: m ? ciclo[(ciclo.indexOf(m.sessione) + 1) % 3] : "M1",
+    f: f ? (f.sessione === "A" ? "B" : "A") : "A",
+  };
+}
+
+/* Le sedute salvate citano le sigle di quando sono state fatte: se la scheda
+   non c'e' piu' si dice, non si rompe (§9 del PIANO). */
+function nomeDi(nomeSeduta, sigla) {
+  const sed = DATI.sedute[nomeSeduta];
+  const v = sed && sed.esercizi.find(e => (e.sigla || e.chiave) === sigla);
+  return v ? DATI.esercizi[v.chiave].nome : sigla + " (non più in programma)";
+}
+
+/* ------------------------------------------------------------- i passi */
+
+/* Un passo = una serie (e un lato) di un esercizio. La seduta e' la lista
+   piatta dei passi: un indice solo, niente stati annidati. */
+function costruisciPassi(nome) {
+  const sed = DATI.sedute[nome], passi = [];
+  let ei = 0;
+
+  const aggiungi = (voce, n, giro, nGiri) => {
+    const e = DATI.esercizi[voce.chiave];
+    // la mattutina prescrive nella tabella della routine, la forza nella scheda
+    const q = voce.secondi === undefined ? e : voce;
+    const nLati = q.per_lato && q.secondi ? 2 : 1;   // 45 s per lato = due countdown
+    ei++;
+    for (let s = 1; s <= q.serie; s++)
+      for (let l = 1; l <= nLati; l++)
+        passi.push({
+          ei, n, k: voce.chiave, sigla: voce.sigla || voce.chiave,
+          nome: e.nome, blocco: voce.blocco,
+          quanto: voce.quanto || e.quanto, cue: voce.cue || "",
+          serie: s, nSerie: q.serie, lato: l, nLati, giro, nGiri,
+          secondi: q.secondi,
+          // il recupero e' dopo l'ultimo lato della serie, mai tra i due lati
+          recupero: l === nLati ? q.recupero_s : 0,
+        });
+  };
+
+  if (sed.tipo === "mattutina") {
+    sed.esercizi.forEach((v, i) => aggiungi(v, i + 1, 1, 1));
+  } else {
+    const blocchi = [];
+    sed.esercizi.forEach((v, i) => {
+      const b = blocchi[blocchi.length - 1];
+      if (b && b.n === v.blocco) b.voci.push({ v, i }); else blocchi.push({ n: v.blocco, voci: [{ v, i }] });
+    });
+    for (const b of blocchi) {
+      const info = sed.blocchi[b.n] || { giri: 1, recupero_giro_s: 0 };
+      for (let g = 1; g <= info.giri; g++) {
+        const da = passi.length;
+        b.voci.forEach(x => aggiungi(x.v, x.i + 1, g, info.giri));
+        if (info.giri > 1)      // il recupero di fine giro batte quello dell'esercizio
+          passi[passi.length - 1].recupero = g < info.giri ? info.recupero_giro_s : 0;
+        void da;
+      }
+    }
+  }
+  if (passi.length) passi[passi.length - 1].recupero = 0;   // finita, non si riposa
+  return passi;
+}
+
+/* --------------------------------------------------------------- schermi */
+
+function vaiHome() {
+  fermaTimer();
+  S = null;
+  const st = storico(), p = prossime(st), corso = leggi("corso", null);
+  const data = new Date().toLocaleDateString("it-IT",
+    { weekday: "long", day: "numeric", month: "long" });
+  const bottone = (n, eti) => `<button class="grande primario" data-a="apri" data-v="${n}">${eti}</button>`;
+
+  let h = `<h1>Allenamento</h1><p class="spento">${data[0].toUpperCase() + data.slice(1)}</p>`;
+
+  if (corso)
+    h += `<div class="card"><b>Seduta ${corso.nome} lasciata a metà</b>
+      <p class="spento">esercizio ${corso.passi_n || "?"} · ${mmss(corso.tot)} di lavoro</p>
+      <div class="riga"><button data-a="riprendi">Riprendi</button>
+      <button data-a="butta">Butta via</button></div></div>`;
+
+  h += bottone(p.m, `Mattutina (${p.m})`) + bottone(p.f, `Forza (${p.f})`);
+  h += `<p><button class="piccolo" data-a="altre">scegli un'altra</button></p>
+        <div id="altre" hidden class="riga">` +
+    Object.keys(DATI.sedute).map(n =>
+      `<button class="piccolo" data-a="apri" data-v="${n}">${n}</button>`).join("") + `</div>`;
+
+  const nuove = st.filter(s => !s.esportata).length;
+  h += `<p class="riga"><button class="piccolo" data-a="esporta">Esporta${nuove ? " (" + nuove + ")" : ""}</button>
+        <button class="piccolo" data-a="esportatutto">Esporta tutto</button></p>`;
+
+  if (st.length) {
+    h += `<h2>Ultime sedute</h2><ul class="spento">` + st.slice(-6).reverse().map(s =>
+      `<li>${ggmm(s.data)} · ${s.tipo === "forza" ? "Forza " : ""}${s.sessione} · ${Math.round(s.durata_s / 60)} min ${s.sensazione || ""}` +
+      (s.saltati.length ? ` · saltati: ${s.saltati.map(g => esc(nomeDi(s.sessione, g))).join(", ")}` : "") +
+      (s.esportata ? "" : " · <b>da esportare</b>") + `</li>`).join("") + `</ul>`;
+  }
+
+  h += `<hr><p class="spento"><small>build ${DATI.build}` +
+       (VELOCE > 1 ? " · <b>modalità veloce 10×</b>" : "") + `</small></p>`;
+  SCH.innerHTML = h;
+  FONDO.innerHTML = "";
+}
+
+/* ----------------------------------------------------------- la seduta */
+
+let S = null, batti = null, ultimo = 0, wake = null;
+
+function apri(nome, ripresa) {
+  // una seduta ripresa riparte dall'esercizio dov'era, ferma, con il suo
+  // cronometro: il tap su Inizia e' lo stesso di sempre
+  S = Object.assign({ nome, i: 0, tot: 0, saltati: [] }, ripresa,
+                    { fase: "lavoro", resto: 0, conto: false, pausa: false, avviata: false });
+  S.passi = costruisciPassi(S.nome);
+  if (S.i >= S.passi.length) S.i = 0;    // le schede sono cambiate sotto i piedi
+  entra(S.i);
+  avviaTimer();
+}
+
+function entra(i) {
+  S.i = i;
+  const p = S.passi[i];
+  S.fase = "lavoro";
+  S.resto = p.secondi;
+  S.conto = S.avviata && p.secondi > 0;
+  salvaCorso();
+  disegnaPasso();
+}
+
+function salvaCorso() {
+  if (!S) return;
+  salvaIn("corso", { nome: S.nome, i: S.i, tot: S.tot, saltati: S.saltati,
+                     passi_n: S.passi[S.i] ? S.passi[S.i].n : 1 });
+}
+
+function disegnaPasso() {
+  const p = S.passi[S.i], e = DATI.esercizi[p.k];
+  const sed = DATI.sedute[S.nome];
+  const tot = sed.esercizi.length;
+  const blocco = sed.blocchi && sed.blocchi[p.blocco] ? sed.blocchi[p.blocco].nome : "";
+
+  const tag = [];
+  if (p.nSerie > 1) tag.push(`serie ${p.serie}/${p.nSerie}`);
+  if (p.nLati > 1) tag.push(`lato ${p.lato}/${p.nLati}`);
+  if (p.nGiri > 1) tag.push(`giro ${p.giro}/${p.nGiri}`);
+
+  SCH.innerHTML = `
+  <div class="barra">
+    <button class="cron${S.pausa ? " pausa" : ""}" data-a="pausa" id="cron">${mmss(S.tot)}</button>
+    <span class="dove">${blocco ? esc(blocco) + " · " : ""}${p.n} / ${tot}</span>
+    <button class="piccolo" data-a="esci">Esci</button>
+  </div>
+  <div class="card">
+    <h2>${p.sigla !== p.k ? esc(p.sigla) + " · " : ""}${esc(p.nome)}</h2>
+    <p>${esc(p.quanto)}${e.recupero && e.recupero !== "nessuno" ? ` <span class="spento">· recupero ${esc(e.recupero)}</span>` : ""}
+       ${tag.map(t => `<span class="tag">${t}</span>`).join(" ")}</p>
+    ${p.cue ? `<p class="cue">» ${esc(p.cue)}</p>` : ""}
+    ${DATI.figure[e.figura] || ""}
+    <div class="conto" id="conto"></div>
+    ${e.attrezzi && e.attrezzi !== "nessuno" ? `<p class="spento"><small>attrezzi: ${esc(e.attrezzi)}</small></p>` : ""}
+  </div>
+  ${PARAGRAFI.filter(([k]) => e[k]).map(([k, eti]) =>
+    `<details><summary>${eti}</summary><div>${testo(e[k])}</div></details>`).join("")}
+  ${e.video ? `<p><a href="${esc(e.video)}" target="_blank" rel="noopener">🎥 Cerca il video</a></p>` : ""}`;
+
+  FONDO.innerHTML = `
+    <button data-a="indietro">Indietro</button>
+    <button data-a="salta">Salta</button>
+    <button class="primario" data-a="avanti" id="avanti"></button>`;
+  disegnaTempi();
+}
+
+function disegnaTempi() {
+  const c = $("#cron"); if (!c || !S) return;
+  c.textContent = (S.pausa ? "▶ " : "") + mmss(S.tot);   // in pausa: tocca per ripartire
+  c.classList.toggle("pausa", S.pausa);
+  const p = S.passi[S.i], box = $("#conto"), bot = $("#avanti");
+  const riposo = S.fase === "recupero";
+  const finito = S.resto <= 0;
+  if (riposo || p.secondi) {
+    box.textContent = (riposo ? "riposo " : "") + mmss(S.resto);
+    box.className = "conto" + (riposo ? " riposo" : "") + (finito && S.avviata ? " finito" : "");
+  } else {
+    box.textContent = "";
+    box.className = "conto";
+  }
+  bot.textContent = !S.avviata ? "Inizia" : riposo ? (finito ? "Avanti" : "Salta il riposo") : "Fatto";
+}
+
+function avviaTimer() {
+  fermaTimer();
+  ultimo = performance.now();
+  batti = setInterval(() => {
+    const ora = performance.now(), dt = (ora - ultimo) / 1000 * VELOCE;
+    ultimo = ora;
+    if (!S || S.pausa || !S.avviata) return;
+    S.tot += dt;
+    if (S.conto) {
+      S.resto -= dt;
+      if (S.resto <= 0) { S.resto = 0; S.conto = false; vibra([250, 100, 250]); }
+    }
+    disegnaTempi();
+  }, 200);
+}
+const fermaTimer = () => { clearInterval(batti); batti = null; };
+
+async function tieniAcceso(on) {
+  try {
+    if (on) { wake = await navigator.wakeLock.request("screen"); }
+    else if (wake) { await wake.release(); wake = null; }
+  } catch (e) { wake = null; }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && S && S.avviata) tieniAcceso(true);
+});
+
+/* --- comandi della seduta --- */
+
+function avanti() {
+  const p = S.passi[S.i];
+  if (!S.avviata) {                       // primo tap: parte il cronometro
+    S.avviata = true;
+    S.conto = p.secondi > 0;
+    tieniAcceso(true);
+    disegnaTempi();
+    return;
+  }
+  if (S.fase === "lavoro" && p.recupero > 0) {
+    S.fase = "recupero"; S.resto = p.recupero; S.conto = true;
+    salvaCorso(); disegnaTempi(); return;
+  }
+  passaAl(S.i + 1);
+}
+
+function passaAl(i) {
+  if (i >= S.passi.length) return fine();
+  entra(i);
+}
+
+function salta() {
+  const p = S.passi[S.i];
+  if (!S.saltati.includes(p.sigla)) S.saltati.push(p.sigla);
+  let i = S.i;
+  while (i < S.passi.length && S.passi[i].ei === p.ei) i++;
+  passaAl(i);
+}
+
+function indietro() {
+  const ei = S.passi[S.i].ei;
+  let j = S.i;
+  while (j > 0 && S.passi[j - 1].ei === ei) j--;      // inizio dell'esercizio corrente
+  if (j === S.i && j > 0) {                            // gia' all'inizio: quello prima
+    const pr = S.passi[j - 1].ei;
+    while (j > 0 && S.passi[j - 1].ei === pr) j--;
+  }
+  entra(j);
+}
+
+/* ---------------------------------------------------------- fine seduta */
+
+function fine() {
+  fermaTimer(); tieniAcceso(false);
+  const sed = DATI.sedute[S.nome];
+  const chiavi = new Set(sed.esercizi.map(e => e.chiave));
+  const campi = CHIAVE.filter(c => c.k.some(k => chiavi.has(k)));
+  const fatti = sed.esercizi.length - S.saltati.length;
+
+  SCH.innerHTML = `<h1>Fatta.</h1>
+  <p><b>${mmss(S.tot)}</b> · ${fatti} esercizi su ${sed.esercizi.length}
+     ${S.saltati.length ? `<br><span class="spento">saltati: ${S.saltati.map(g => esc(nomeDi(S.nome, g))).join(", ")}</span>` : ""}</p>
+
+  ${campi.length ? `<h2>Numeri chiave</h2>
+    <p class="spento"><small>Solo quelli che vuoi. Vuoto = non misurato.</small></p>
+    ${campi.map(c => `<label for="c_${c.id}">${c.eti}</label>
+      <input id="c_${c.id}" type="number" inputmode="numeric" step="any" min="0">`).join("")}` : ""}
+
+  <h2>Come è andata</h2>
+  <div class="riga">${["🟢", "🟡", "🔴"].map(s =>
+    `<button class="grande" data-a="senso" data-v="${s}" id="s_${s}">${s}</button>`).join("")}</div>
+
+  <label for="note">Feedback libero</label>
+  <textarea id="note" rows="3" placeholder="Solo se c'è qualcosa da dire."></textarea>
+
+  <label><input type="checkbox" id="hafastidio" data-a="fastidio" style="width:auto"> Ho sentito un fastidio</label>
+  <div id="boxfastidio" hidden>
+    <label for="f_dove">Dove esattamente</label><input id="f_dove">
+    <label for="f_es">Con quale esercizio</label>
+    <select id="f_es"><option value=""></option>${sed.esercizi.map(v =>
+      `<option>${esc(DATI.esercizi[v.chiave].nome)}</option>`).join("")}</select>
+    <label for="f_punto">In che punto del movimento</label><input id="f_punto">
+    <label for="f_quando">Durante o il giorno dopo</label>
+    <select id="f_quando"><option>durante</option><option>il giorno dopo</option></select>
+    <label for="f_durata">Passato subito o rimasto</label>
+    <select id="f_durata"><option>passato subito</option><option>rimasto</option></select>
+    <label for="f_tipo">Muscolare o articolare</label>
+    <select id="f_tipo"><option>muscolare (diffuso)</option><option>articolare (puntuale)</option></select>
+  </div>
+  <p class="spento"><small>Dolore articolare = si scende di progressione lo stesso giorno.</small></p>`;
+
+  FONDO.innerHTML = `<button data-a="riprendifine">Riprendi la seduta</button>
+    <button class="primario" data-a="salvafine">Salva</button>`;
+}
+
+function salvaFine() {
+  const v = id => { const n = $("#" + id); return n ? n.value.trim() : ""; };
+  const chiave = {};
+  for (const c of CHIAVE) {
+    const n = $("#c_" + c.id);
+    if (n && n.value !== "") chiave[c.id] = Number(n.value);
+  }
+  const rec = {
+    data: oggi(),
+    tipo: DATI.sedute[S.nome].tipo,
+    sessione: S.nome,
+    durata_s: Math.round(S.tot / VELOCE),
+    saltati: S.saltati,
+    chiave,
+    sensazione: S.sensazione || "",
+    note: v("note"),
+  };
+  if ($("#hafastidio").checked)
+    rec.fastidio = {
+      dove: v("f_dove"), esercizio: v("f_es"), punto: v("f_punto"),
+      quando: v("f_quando"), durata: v("f_durata"), tipo: v("f_tipo"),
+    };
+  const st = storico();
+  st.push(rec);
+  salvaIn("sedute", st);
+  localStorage.removeItem("corso");
+  S = null;
+  vaiHome();
+  SCH.insertAdjacentHTML("afterbegin",
+    `<p class="card"><b>Salvata.</b> Quando puoi, premi <i>Esporta</i> e incolla il testo in chat.</p>`);
+}
+
+/* --------------------------------------------------------------- export */
+
+/* Una riga per giorno: la tabella del diario ha sia Sessione sia Mattutina. */
+function rigaLog(recs) {
+  const forza = recs.filter(r => r.tipo === "forza").pop();
+  const matt = recs.filter(r => r.tipo === "mattutina").pop();
+  const numeri = [];
+  for (const c of CHIAVE)
+    for (const r of recs)
+      if (r.chiave && r.chiave[c.id] !== undefined) {
+        const e = c.k.map(k => DATI.esercizi[k]).find(Boolean);
+        const serie = e && e.serie > 1 ? " × " + e.serie : "";
+        numeri.push(`${c.log} ${r.chiave[c.id]}${c.u}${serie}`);
+      }
+  const senso = (forza && forza.sensazione) || (matt && matt.sensazione) || "";
+  return `| ${ggmm(recs[0].data)} | ${forza ? forza.sessione : ""} | ${matt ? matt.sessione : ""} | ${numeri.join(", ")} | ${senso} |`;
+}
+
+function nota(recs) {
+  const con = recs.filter(r => r.note || r.fastidio);
+  if (!con.length) return "";
+  const f = con.map(r => r.fastidio).find(Boolean);
+  const d = recs[0].data;
+  let t = `# Nota del ${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}\n\n`;
+  t += `**Tipo:** ${f ? "dolore" : "nota libera"}\n\n---\n\n## Cosa è successo\n\n`;
+  t += (con.map(r => r.note).filter(Boolean).join("\n\n") || "(vedi sotto)") + "\n";
+  if (f) t += `\n## Se è un dolore o un fastidio\n\n` +
+    `- **Dove esattamente:** ${f.dove}\n- **Con quale esercizio:** ${f.esercizio}\n` +
+    `- **In che punto del movimento:** ${f.punto}\n- **Durante o il giorno dopo:** ${f.quando}\n` +
+    `- **Passato subito o rimasto:** ${f.durata}\n- **Muscolare (diffuso) o articolare (puntuale):** ${f.tipo}\n`;
+  return t;
+}
+
+const rigaJson = r => JSON.stringify({
+  data: r.data, tipo: r.tipo, sessione: r.sessione, durata_s: r.durata_s,
+  saltati: r.saltati, chiave: r.chiave, sensazione: r.sensazione,
+  note: r.note, ...(r.fastidio ? { fastidio: r.fastidio } : {}),
+});
+
+function testoExport(tutto) {
+  const st = storico();
+  const date = [...new Set(st.filter(r => tutto || !r.esportata).map(r => r.data))].sort();
+  if (!date.length) return "Niente da esportare: tutte le sedute sono già state incollate.";
+
+  let t = `Sedute da registrare nel diario (${date.length} ${date.length === 1 ? "giorno" : "giorni"}).\n` +
+    `Se una riga con la stessa data esiste già nel diario, sostituiscila.\n\n` +
+    `--- diario/diario.md · tabella "Log delle sedute" ---\n\n`;
+  for (const d of date) t += rigaLog(st.filter(r => r.data === d)) + "\n";
+
+  for (const d of date) {
+    const n = nota(st.filter(r => r.data === d));
+    if (n) t += `\n--- diario/${d}.md ---\n\n${n}`;
+  }
+  if (tutto)
+    t += `\n--- diario/sedute.jsonl · storico completo, ${st.length} sedute ---\n\n` +
+      st.map(rigaJson).join("\n") + "\n";
+  return t;
+}
+
+function esporta(tutto) {
+  const t = testoExport(tutto);
+  SCH.innerHTML = `<h1>Export</h1>
+    <p class="spento">Incollalo in chat: i file del diario li scrivo io da qui.</p>
+    <pre id="ex">${esc(t)}</pre>`;
+  FONDO.innerHTML = `<button data-a="home">Chiudi</button>
+    ${navigator.share ? `<button data-a="condividi">Condividi</button>` : ""}
+    <button class="primario" data-a="copia">Copia</button>`;
+  try { navigator.clipboard.writeText(t); } catch (e) {}
+  const st = storico();
+  st.forEach(r => r.esportata = true);
+  salvaIn("sedute", st);
+}
+
+/* ---------------------------------------------------------------- click */
+
+const AZIONI = {
+  apri: n => apri(n),
+  altre: () => { const d = $("#altre"); d.hidden = !d.hidden; },
+  riprendi: () => { const c = leggi("corso", null); if (c) apri(c.nome, c); },
+  butta: () => { localStorage.removeItem("corso"); vaiHome(); },
+  esci: () => { salvaCorso(); tieniAcceso(false); vaiHome(); },
+  pausa: () => { S.pausa = !S.pausa; salvaCorso(); disegnaTempi(); },
+  avanti, salta, indietro,
+  senso: (s, b) => {
+    S.sensazione = s;
+    document.querySelectorAll("[data-a=senso]").forEach(x => x.classList.remove("scelto"));
+    b.classList.add("scelto");
+  },
+  fastidio: () => { $("#boxfastidio").hidden = !$("#hafastidio").checked; },
+  riprendifine: () => { avviaTimer(); entra(S.i); },
+  salvafine: salvaFine,
+  esporta: () => esporta(false),
+  esportatutto: () => esporta(true),
+  copia: () => {
+    const t = $("#ex").textContent;
+    const ok = () => alert("Copiato.");
+    try { navigator.clipboard.writeText(t).then(ok, () => selezionaTutto()); }
+    catch (e) { selezionaTutto(); }
+  },
+  condividi: () => navigator.share({ text: $("#ex").textContent }).catch(() => {}),
+  home: vaiHome,
+};
+
+function selezionaTutto() {
+  const r = document.createRange();
+  r.selectNodeContents($("#ex"));
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  alert("Copia a mano: il testo è già selezionato.");
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-a]");
+  if (b && AZIONI[b.dataset.a]) AZIONI[b.dataset.a](b.dataset.v, b);
+});
+addEventListener("pagehide", salvaCorso);
+
+/* -------------------------------------------------------------- autotest
+   ?test=1 — la logica che si puo' rompere in silenzio: passi, rotazione,
+   riga di log. Il resto si vede a occhio aprendo l'app. */
+function autotest() {
+  const ok = (c, m) => { if (!c) throw new Error(m); };
+  const sigle = n => costruisciPassi(n).map(p => p.sigla);
+
+  const a = costruisciPassi("A");
+  ok(a[0].sigla === "R1", "A parte dal riscaldamento");
+  ok(sigle("A").filter(s => s === "A1").length === 3, "L-sit: 3 serie");
+  ok(sigle("A").filter(s => s === "F1").length === 2, "finisher: 2 giri");
+  ok(sigle("B").filter(s => s === "B6").length === 6, "plank laterale: 3 serie × 2 lati");
+  ok(a[a.length - 1].recupero === 0, "l'ultimo passo non ha recupero");
+  const f1 = a.filter(p => p.sigla === "F2");
+  ok(f1[0].recupero === 45 && f1[1].recupero === 0, "45 s solo tra un giro e l'altro");
+  const a1 = a.filter(p => p.sigla === "A1");
+  ok(a1[0].recupero === 60 && a1[0].secondi === 20, "L-sit 20 s / recupero 60 s");
+  ok(sigle("M1").length === 8, "M1: 8 passi, nessuna serie multipla");
+
+  ok(prossime([]).m === "M1" && prossime([]).f === "A", "storico vuoto: M1 e A");
+  ok(prossime([{ tipo: "mattutina", sessione: "M3" }]).m === "M1", "M3 -> M1");
+  ok(prossime([{ tipo: "forza", sessione: "A" }]).f === "B", "A -> B");
+
+  const riga = rigaLog([
+    { data: "2026-08-18", tipo: "forza", sessione: "B", chiave: { negativa_s: 6, dead_hang_s: 34 }, sensazione: "🟡", saltati: [] },
+    { data: "2026-08-18", tipo: "mattutina", sessione: "M2", chiave: {}, sensazione: "🟢", saltati: [] },
+  ]);
+  ok(riga === "| 18/08 | B | M2 | dead hang 34 s, negativa 6 s × 3 | 🟡 |", riga);
+
+  ok(nomeDi("A", "A1") === "L-sit" && nomeDi("A", "Z9").includes("non più"), "sigle sparite");
+  return "test ok";
+}
+
+vaiHome();
+
+// da file:// non c'e' service worker: la verifica in locale non deve rompersi
+navigator.serviceWorker?.register("sw.js").catch(() => {});
+
+if (new URLSearchParams(location.search).has("test")) {
+  let esito;
+  try { esito = autotest(); } catch (e) { esito = "TEST ROTTO: " + e.message; }
+  document.title = esito;
+  SCH.insertAdjacentHTML("afterbegin", `<p class="card"><b>${esc(esito)}</b></p>`);
+}
+</script>
+</body>
+</html>
