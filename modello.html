@@ -64,6 +64,9 @@ details div{padding-bottom:.6rem}
        max-width:34rem;margin:0 auto}
 .fondo button{flex:1;padding:.9rem .6rem;text-align:center}
 .fondo .primario{flex:2;font-size:1.15rem;font-weight:700}
+.voce{display:flex;align-items:center;gap:.4rem;border-bottom:1px solid var(--bordo);padding:.45rem 0}
+.voce span{flex:1;color:var(--spento);font-size:.9rem}
+.voce button{flex:0 0 auto}
 .tag{display:inline-block;background:var(--bg);border:1px solid var(--bordo);
      border-radius:.5rem;padding:.1rem .45rem;font-size:.85rem;color:var(--spento)}
 .scelto{outline:2px solid var(--acc)}
@@ -193,6 +196,8 @@ function costruisciPassi(nome) {
 
 /* --------------------------------------------------------------- schermi */
 
+let tutte = false;   // lo storico in home: solo le ultime 6 o tutto
+
 function vaiHome() {
   fermaTimer();
   S = null;
@@ -220,10 +225,17 @@ function vaiHome() {
         <button class="piccolo" data-a="esportatutto">Esporta tutto</button></p>`;
 
   if (st.length) {
-    h += `<h2>Ultime sedute</h2><ul class="spento">` + st.slice(-6).reverse().map(s =>
-      `<li>${ggmm(s.data)} · ${s.tipo === "forza" ? "Forza " : ""}${s.sessione} · ${Math.round(s.durata_s / 60)} min ${s.sensazione || ""}` +
-      (s.saltati.length ? ` · saltati: ${s.saltati.map(g => esc(nomeDi(s.sessione, g))).join(", ")}` : "") +
-      (s.esportata ? "" : " · <b>da esportare</b>") + `</li>`).join("") + `</ul>`;
+    // ogni riga porta il suo indice: la lista e' rovesciata, l'indice no
+    const righe = st.map((s, i) => ({ s, i }));
+    h += `<h2>Ultime sedute</h2>` +
+      (tutte ? righe : righe.slice(-6)).reverse().map(({ s, i }) =>
+        `<div class="voce"><span>${ggmm(s.data)} · ${s.tipo === "forza" ? "Forza " : ""}${s.sessione} · ${Math.round(s.durata_s / 60)} min ${s.sensazione || ""}` +
+        (s.saltati.length ? ` · saltati: ${s.saltati.map(g => esc(nomeDi(s.sessione, g))).join(", ")}` : "") +
+        (s.esportata ? "" : " · <b>da esportare</b>") +
+        `</span><button class="piccolo" data-a="copiauna" data-v="${i}">copia</button>` +
+        `<button class="piccolo" data-a="elimina" data-v="${i}">elimina</button></div>`).join("");
+    if (st.length > 6)
+      h += `<p><button class="piccolo" data-a="tutte">${tutte ? "mostra solo le ultime" : `mostra tutte (${st.length})`}</button></p>`;
   }
 
   h += `<hr><p class="spento"><small>build ${DATI.build}` +
@@ -502,18 +514,24 @@ const rigaJson = r => JSON.stringify({
   note: r.note, ...(r.fastidio ? { fastidio: r.fastidio } : {}),
 });
 
-function testoExport(tutto) {
+/* solo = indice di una seduta sola ("copia" dalla home); altrimenti tutte le
+   nuove, o tutto lo storico con ?tutto. */
+function testoExport(tutto, solo) {
   const st = storico();
-  const date = [...new Set(st.filter(r => tutto || !r.esportata).map(r => r.data))].sort();
+  const scelte = solo != null ? [st[solo]] : st.filter(r => tutto || !r.esportata);
+  const date = [...new Set(scelte.map(r => r.data))].sort();
   if (!date.length) return "Niente da esportare: tutte le sedute sono già state incollate.";
+  // La riga e' per giorno e l'export dice "sostituiscila": va ricomposta da
+  // tutte le sedute di quel giorno, anche gia' esportate, o ne perdi una meta'.
+  const delGiorno = d => (solo != null ? scelte : st).filter(r => r.data === d);
 
   let t = `Sedute da registrare nel diario (${date.length} ${date.length === 1 ? "giorno" : "giorni"}).\n` +
     `Se una riga con la stessa data esiste già nel diario, sostituiscila.\n\n` +
     `--- diario/diario.md · tabella "Log delle sedute" ---\n\n`;
-  for (const d of date) t += rigaLog(st.filter(r => r.data === d)) + "\n";
+  for (const d of date) t += rigaLog(delGiorno(d)) + "\n";
 
   for (const d of date) {
-    const n = nota(st.filter(r => r.data === d));
+    const n = nota(delGiorno(d));
     if (n) t += `\n--- diario/${d}.md ---\n\n${n}`;
   }
   if (tutto)
@@ -522,8 +540,8 @@ function testoExport(tutto) {
   return t;
 }
 
-function esporta(tutto) {
-  const t = testoExport(tutto);
+function esporta(tutto, solo) {
+  const t = testoExport(tutto, solo);
   SCH.innerHTML = `<h1>Export</h1>
     <p class="spento">Incollalo in chat: i file del diario li scrivo io da qui.</p>
     <pre id="ex">${esc(t)}</pre>`;
@@ -532,8 +550,17 @@ function esporta(tutto) {
     <button class="primario" data-a="copia">Copia</button>`;
   try { navigator.clipboard.writeText(t); } catch (e) {}
   const st = storico();
-  st.forEach(r => r.esportata = true);
+  st.forEach((r, i) => { if (solo == null || i === Number(solo)) r.esportata = true; });
   salvaIn("sedute", st);
+}
+
+function elimina(i) {
+  const st = storico(), r = st[Number(i)];
+  if (!r) return;
+  if (!confirm(`Elimino la seduta del ${ggmm(r.data)} (${r.sessione})?\nNon si torna indietro.`)) return;
+  st.splice(Number(i), 1);
+  salvaIn("sedute", st);
+  vaiHome();
 }
 
 /* ---------------------------------------------------------------- click */
@@ -556,6 +583,9 @@ const AZIONI = {
   salvafine: salvaFine,
   esporta: () => esporta(false),
   esportatutto: () => esporta(true),
+  copiauna: i => esporta(false, Number(i)),
+  elimina,
+  tutte: () => { tutte = !tutte; vaiHome(); },
   copia: () => {
     const t = $("#ex").textContent;
     const ok = () => alert("Copiato.");
@@ -607,6 +637,10 @@ function autotest() {
     { data: "2026-08-18", tipo: "mattutina", sessione: "M2", chiave: {}, sensazione: "🟢", saltati: [] },
   ]);
   ok(riga === "| 18/08 | B | M2 | dead hang 34 s, negativa 6 s × 3 | 🟡 |", riga);
+
+  // "copia" su una seduta sola: la riga esce con l'altra colonna vuota
+  const sola = rigaLog([{ data: "2026-08-18", tipo: "mattutina", sessione: "M2", chiave: {}, sensazione: "🟢", saltati: [] }]);
+  ok(sola === "| 18/08 |  | M2 |  | 🟢 |", sola);
 
   ok(nomeDi("A", "A1") === "L-sit" && nomeDi("A", "Z9").includes("non più"), "sigle sparite");
   return "test ok";
