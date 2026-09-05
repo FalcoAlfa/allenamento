@@ -256,7 +256,7 @@ let S = null, batti = null, ultimo = 0, wake = null;
 function apri(nome, ripresa) {
   // una seduta ripresa riparte dall'esercizio dov'era, ferma, con il suo
   // cronometro: il tap su Inizia e' lo stesso di sempre
-  S = Object.assign({ nome, i: 0, tot: 0, saltati: [] }, ripresa,
+  S = Object.assign({ nome, i: 0, tot: 0, saltati: [], noteEs: {} }, ripresa,
                     { fase: "lavoro", resto: 0, conto: false, pausa: false, avviata: false });
   S.passi = costruisciPassi(S.nome);
   if (S.i >= S.passi.length) S.i = 0;    // le schede sono cambiate sotto i piedi
@@ -280,6 +280,7 @@ function entra(i) {
 function salvaCorso() {
   if (!S) return;
   salvaIn("corso", { nome: S.nome, i: S.i, tot: S.tot, saltati: S.saltati,
+                     noteEs: S.noteEs,
                      passi_n: S.passi[S.i] ? S.passi[S.i].n : 1 });
 }
 
@@ -288,6 +289,9 @@ function disegnaPasso() {
   const sed = DATI.sedute[S.nome];
   const tot = sed.esercizi.length;
   const blocco = sed.blocchi && sed.blocchi[p.blocco] ? sed.blocchi[p.blocco].nome : "";
+
+  // la nota e' dell'esercizio, non della serie: le 3 serie dell'L-sit ne condividono una
+  const mia = S.noteEs[p.sigla] || "";
 
   const tag = [];
   if (p.nSerie > 1) tag.push(`serie ${p.serie}/${p.nSerie}`);
@@ -311,6 +315,10 @@ function disegnaPasso() {
   </div>
   ${PARAGRAFI.filter(([k]) => e[k]).map(([k, eti]) =>
     `<details><summary>${eti}</summary><div>${testo(e[k])}</div></details>`).join("")}
+  <details${mia ? " open" : ""}><summary>La mia nota${mia ? " ·" : ""}</summary><div>
+    <textarea id="notaes" rows="2" data-sigla="${esc(p.sigla)}"
+      placeholder="Solo se c'è qualcosa da ricordarti su questo esercizio.">${esc(mia)}</textarea>
+  </div></details>
   ${e.video ? `<p><a href="${esc(e.video)}" target="_blank" rel="noopener">🎥 Cerca il video</a></p>` : ""}`;
 
   FONDO.innerHTML = `
@@ -430,6 +438,9 @@ function fine() {
   SCH.innerHTML = `<h1>Fatta.</h1>
   <p><b>${mmss(S.tot)}</b> · ${fatti} esercizi su ${sed.esercizi.length}
      ${S.saltati.length ? `<br><span class="spento">saltati: ${S.saltati.map(g => esc(nomeDi(S.nome, g))).join(", ")}</span>` : ""}</p>
+  ${Object.keys(S.noteEs).length ? `<p class="spento"><small>${Object.keys(S.noteEs).length === 1
+      ? "1 nota scritta sugli esercizi" : Object.keys(S.noteEs).length + " note scritte sugli esercizi"}:
+      partono con l'export, non serve riscriverle qui.</small></p>` : ""}
 
   ${campi.length ? `<h2>Numeri chiave</h2>
     <p class="spento"><small>Solo quelli che vuoi. Vuoto = non misurato.</small></p>
@@ -479,6 +490,7 @@ function salvaFine() {
     chiave,
     sensazione: S.sensazione || "",
     note: v("note"),
+    ...(Object.keys(S.noteEs).length ? { note_es: S.noteEs } : {}),
   };
   if ($("#hafastidio").checked)
     rec.fastidio = {
@@ -513,14 +525,20 @@ function rigaLog(recs) {
   return `| ${ggmm(recs[0].data)} | ${forza ? forza.sessione : ""} | ${matt ? matt.sessione : ""} | ${numeri.join(", ")} | ${senso} |`;
 }
 
+const noteDi = r => Object.entries(r.note_es || {});
+
 function nota(recs) {
-  const con = recs.filter(r => r.note || r.fastidio);
+  const con = recs.filter(r => r.note || r.fastidio || noteDi(r).length);
   if (!con.length) return "";
   const f = con.map(r => r.fastidio).find(Boolean);
   const d = recs[0].data;
   let t = `# Nota del ${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}\n\n`;
   t += `**Tipo:** ${f ? "dolore" : "nota libera"}\n\n---\n\n## Cosa è successo\n\n`;
   t += (con.map(r => r.note).filter(Boolean).join("\n\n") || "(vedi sotto)") + "\n";
+  // scritte durante la seduta, esercizio per esercizio: sono le piu' precise
+  const perEs = con.flatMap(r => noteDi(r).map(([sig, txt]) =>
+    `- **${nomeDi(r.sessione, sig)}**: ${txt}`));
+  if (perEs.length) t += `\n## Esercizio per esercizio\n\n${perEs.join("\n")}\n`;
   if (f) t += `\n## Se è un dolore o un fastidio\n\n` +
     `- **Dove esattamente:** ${f.dove}\n- **Con quale esercizio:** ${f.esercizio}\n` +
     `- **In che punto del movimento:** ${f.punto}\n- **Durante o il giorno dopo:** ${f.quando}\n` +
@@ -531,7 +549,8 @@ function nota(recs) {
 const rigaJson = r => JSON.stringify({
   data: r.data, tipo: r.tipo, sessione: r.sessione, durata_s: r.durata_s,
   saltati: r.saltati, chiave: r.chiave, sensazione: r.sensazione,
-  note: r.note, ...(r.fastidio ? { fastidio: r.fastidio } : {}),
+  note: r.note, ...(r.note_es ? { note_es: r.note_es } : {}),
+  ...(r.fastidio ? { fastidio: r.fastidio } : {}),
 });
 
 /* Il JSONL non e' piu' roba del solo "Esporta tutto": ogni export porta le
@@ -635,6 +654,13 @@ document.addEventListener("click", e => {
   const b = e.target.closest("[data-a]");
   if (b && AZIONI[b.dataset.a]) AZIONI[b.dataset.a](b.dataset.v, b);
 });
+// la nota dell'esercizio si salva a ogni tasto: se esci a meta' seduta non la perdi
+document.addEventListener("input", e => {
+  if (e.target.id !== "notaes" || !S) return;
+  const t = e.target.value.trim();
+  if (t) S.noteEs[e.target.dataset.sigla] = t; else delete S.noteEs[e.target.dataset.sigla];
+  salvaCorso();
+});
 addEventListener("pagehide", salvaCorso);
 
 /* -------------------------------------------------------------- autotest
@@ -658,6 +684,13 @@ function autotest() {
   ok(new Set(m1.map(p => p.sigla)).size === 8, "M1: 8 esercizi");
   ok(m1.filter(p => p.nome === "Chin tuck").length === 6, "chin tuck: 6 tenute");
   ok(m1.filter(p => p.nome === "Stretch del collo").length === 2, "stretch del collo: due lati");
+
+  // le note scritte durante la seduta arrivano nella nota del giorno, da sole se serve
+  const soloEs = nota([{ data: "2026-09-05", sessione: "A", note: "", note_es: { A1: "spalle su" } }]);
+  ok(soloEs.includes("Esercizio per esercizio"), "sezione presente");
+  ok(soloEs.includes("**L-sit**: spalle su"), "sigla risolta nel nome");
+  ok(nota([{ data: "2026-09-05", sessione: "A", note: "" }]) === "", "niente da dire, niente nota");
+  ok(JSON.parse(rigaJson({ note_es: { A1: "x" } })).note_es.A1 === "x", "note_es finisce nel JSONL");
 
   // ogni export porta il suo JSONL: "Esporta" solo le nuove, "Esporta tutto" il file intero
   const fake = n => Array.from({ length: n }, (_, i) => ({ data: "2026-09-0" + (i + 1),
