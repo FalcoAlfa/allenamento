@@ -534,6 +534,16 @@ const rigaJson = r => JSON.stringify({
   note: r.note, ...(r.fastidio ? { fastidio: r.fastidio } : {}),
 });
 
+/* Il JSONL non e' piu' roba del solo "Esporta tutto": ogni export porta le
+   righe delle sedute che sta esportando, cosi' "Esporta" basta sempre e il
+   testo non cresce con lo storico. "Esporta tutto" resta per rifare il file
+   da capo se il diario si perde. */
+const bloccoJson = (righe, tutto, n) =>
+  `\n--- diario/sedute.jsonl · ` +
+  (tutto ? `storico completo, ${n} sedute — sostituisci il file`
+         : `${righe.length} ${righe.length === 1 ? "seduta" : "sedute"} — aggiungile in fondo al file`) +
+  ` ---\n\n` + righe.map(rigaJson).join("\n") + "\n";
+
 /* solo = indice di una seduta sola ("copia" dalla home); altrimenti tutte le
    nuove, o tutto lo storico con ?tutto. */
 function testoExport(tutto, solo) {
@@ -554,9 +564,7 @@ function testoExport(tutto, solo) {
     const n = nota(delGiorno(d));
     if (n) t += `\n--- diario/${d}.md ---\n\n${n}`;
   }
-  if (tutto)
-    t += `\n--- diario/sedute.jsonl · storico completo, ${st.length} sedute ---\n\n` +
-      st.map(rigaJson).join("\n") + "\n";
+  t += bloccoJson(tutto ? st : scelte, tutto, st.length);
   return t;
 }
 
@@ -650,6 +658,14 @@ function autotest() {
   ok(new Set(m1.map(p => p.sigla)).size === 8, "M1: 8 esercizi");
   ok(m1.filter(p => p.nome === "Chin tuck").length === 6, "chin tuck: 6 tenute");
   ok(m1.filter(p => p.nome === "Stretch del collo").length === 2, "stretch del collo: due lati");
+
+  // ogni export porta il suo JSONL: "Esporta" solo le nuove, "Esporta tutto" il file intero
+  const fake = n => Array.from({ length: n }, (_, i) => ({ data: "2026-09-0" + (i + 1),
+    tipo: "forza", sessione: "B", durata_s: 60, saltati: [], chiave: {}, sensazione: "🟢", note: "" }));
+  const nuove = bloccoJson(fake(2), false, 9);
+  ok(nuove.includes("aggiungile in fondo") && !nuove.includes("sostituisci"), "Esporta: solo le nuove");
+  ok(nuove.trim().split("\n").length === 3, "2 sedute nuove = intestazione + 2 righe JSON");
+  ok(bloccoJson(fake(9), true, 9).includes("sostituisci il file"), "Esporta tutto: file intero");
 
   // il countdown aspetta il tap, il riposo no
   const S0 = { avviata: true, fase: "lavoro", partito: false };
