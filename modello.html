@@ -269,7 +269,10 @@ function entra(i) {
   const p = S.passi[i];
   S.fase = "lavoro";
   S.resto = p.secondi;
-  S.conto = S.avviata && p.secondi > 0;
+  // il countdown di un passo a tempo non parte entrando: aspetta il tap, perche'
+  // fra un passo e l'altro serve il tempo di mettersi in posizione
+  S.partito = false;
+  S.conto = false;
   salvaCorso();
   disegnaPasso();
 }
@@ -317,6 +320,10 @@ function disegnaPasso() {
   disegnaTempi();
 }
 
+// true = il prossimo tap avvia qualcosa (cronometro o countdown), non avanza
+const daAvviare = (p, s) =>
+  !s.avviata || (s.fase === "lavoro" && p.secondi > 0 && !s.partito);
+
 function disegnaTempi() {
   const c = $("#cron"); if (!c || !S) return;
   c.textContent = (S.pausa ? "▶ " : "") + mmss(S.tot);   // in pausa: tocca per ripartire
@@ -331,7 +338,8 @@ function disegnaTempi() {
     box.textContent = "";
     box.className = "conto";
   }
-  bot.textContent = !S.avviata ? "Inizia" : riposo ? (finito ? "Avanti" : "Salta il riposo") : "Fatto";
+  bot.textContent = daAvviare(p, S) ? "Inizia"
+                  : riposo ? (finito ? "Avanti" : "Salta il riposo") : "Fatto";
 }
 
 function avviaTimer() {
@@ -367,8 +375,15 @@ function avanti() {
   const p = S.passi[S.i];
   if (!S.avviata) {                       // primo tap: parte il cronometro
     S.avviata = true;
+    S.partito = true;
     S.conto = p.secondi > 0;
     tieniAcceso(true);
+    disegnaTempi();
+    return;
+  }
+  if (daAvviare(p, S)) {                  // tap su un passo a tempo fermo: via il countdown
+    S.partito = true;
+    S.conto = true;
     disegnaTempi();
     return;
   }
@@ -631,7 +646,18 @@ function autotest() {
   ok(f1[0].recupero === 45 && f1[1].recupero === 0, "45 s solo tra un giro e l'altro");
   const a1 = a.filter(p => p.sigla === "A1");
   ok(a1[0].recupero === 60 && a1[0].secondi === 20, "L-sit 20 s / recupero 60 s");
-  ok(sigle("M1").length === 8, "M1: 8 passi, nessuna serie multipla");
+  const m1 = costruisciPassi("M1");
+  ok(new Set(m1.map(p => p.sigla)).size === 8, "M1: 8 esercizi");
+  ok(m1.filter(p => p.nome === "Chin tuck").length === 6, "chin tuck: 6 tenute");
+  ok(m1.filter(p => p.nome === "Stretch del collo").length === 2, "stretch del collo: due lati");
+
+  // il countdown aspetta il tap, il riposo no
+  const S0 = { avviata: true, fase: "lavoro", partito: false };
+  ok(daAvviare({ secondi: 20 }, S0), "passo a tempo fermo: il tap lo avvia");
+  ok(!daAvviare({ secondi: 20 }, { ...S0, partito: true }), "gia' partito: il tap e' Fatto");
+  ok(!daAvviare({ secondi: 0 }, S0), "a ripetizioni: niente da avviare");
+  ok(!daAvviare({ secondi: 30 }, { ...S0, fase: "recupero" }), "il riposo parte da solo");
+  ok(daAvviare({ secondi: 0 }, { ...S0, avviata: false }), "seduta ferma: il tap e' Inizia");
 
   ok(prossime([]).m === "M1" && prossime([]).f === "A", "storico vuoto: M1 e A");
   ok(prossime([{ tipo: "mattutina", sessione: "M3" }]).m === "M1", "M3 -> M1");
