@@ -19,7 +19,7 @@ IMG = BASE / "img"
 
 MAX_ESERCIZI_ROUTINE = 8
 MAX_MINUTI_ROUTINE = 10
-MAX_ESERCIZI_BLOCCO = 4          # CLAUDE.md sezione 7
+MAX_ESERCIZI_BLOCCO = 4          # Allenamento.md sezione 7
 
 # la console di Windows non e' UTF-8: senza questo il conteggio esce illeggibile
 if hasattr(sys.stdout, "reconfigure"):
@@ -296,11 +296,11 @@ def controlla(dati, schede_f):
             continue
         if len(r["esercizi"]) > MAX_ESERCIZI_ROUTINE:
             raise Errore(f"{nome}: {len(r['esercizi'])} esercizi, il massimo e' "
-                         f"{MAX_ESERCIZI_ROUTINE} (CLAUDE.md sezione 7)")
+                         f"{MAX_ESERCIZI_ROUTINE} (Allenamento.md sezione 7)")
         durata = max(r["minuti"], round(sum(e["tempo_s"] for e in r["esercizi"]) / 60))
         if durata > MAX_MINUTI_ROUTINE:
             raise Errore(f"{nome}: {durata} minuti, il massimo e' {MAX_MINUTI_ROUTINE} "
-                         f"(CLAUDE.md sezione 7)")
+                         f"(Allenamento.md sezione 7)")
         for e in r["esercizi"]:
             if e["chiave"] not in dati["esercizi"]:
                 raise Errore(f"{nome}, esercizio «{e['nome']}»: manca la scheda "
@@ -313,7 +313,7 @@ def controlla(dati, schede_f):
         for blocco in (1, 2):
             if conta.get(blocco, 0) > MAX_ESERCIZI_BLOCCO:
                 raise Errore(f"sessione {quale}, blocco {blocco}: {conta[blocco]} esercizi, "
-                             f"il massimo e' {MAX_ESERCIZI_BLOCCO} (CLAUDE.md sezione 7)")
+                             f"il massimo e' {MAX_ESERCIZI_BLOCCO} (Allenamento.md sezione 7)")
 
     for chiave, d in dati["esercizi"].items():
         eti = f"{chiave} «{d['nome']}»"

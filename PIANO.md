@@ -3,7 +3,7 @@
 Documento di riferimento. Chi riprende il lavoro in una sessione futura legge
 **solo questo file** e sa cosa fare: le decisioni qui dentro sono chiuse, non
 vanno ridiscusse. Prima di toccare qualsiasi cosa, leggi comunque
-[../CLAUDE.md](../CLAUDE.md).
+[../Allenamento.md](../Allenamento.md).
 
 ---
 
@@ -122,7 +122,7 @@ resto di `99-Personale/` non ci entra.
 ## 5. `costruisci.py` — le regole di lettura
 
 È il pezzo delicato: dipende dal formato fisso imposto dalla sezione 7 di
-CLAUDE.md. Regola generale: **se qualcosa non torna, si ferma con un errore
+Allenamento.md. Regola generale: **se qualcosa non torna, si ferma con un errore
 chiaro**. Mai saltare un esercizio in silenzio.
 
 ### 5.1 Routine mattutina
@@ -176,7 +176,7 @@ Il build fallisce, con messaggio esplicito, se:
 - una scheda non ha la figura, o l'SVG citato non esiste in `img/`;
 - manca uno dei quattro paragrafi obbligatori;
 - una routine mattutina supera gli 8 esercizi o i 10 minuti dichiarati
-  (i vincoli della sezione 7 di CLAUDE.md: se salta questo controllo, ho
+  (i vincoli della sezione 7 di Allenamento.md: se salta questo controllo, ho
   sbagliato io a scrivere la scheda).
 
 A build riuscito stampa il conteggio: `M1 8 · M2 8 · M3 8 · A 17 · B 17 ·
@@ -327,7 +327,7 @@ Quando ti dico *"togli l'affondo bulgaro"* o *"aggiungi le trazioni
 australiane"*, il giro è sempre questo, in quest'ordine:
 
 1. **La scheda** — la scrivi o la togli in `allenamento-forza.md` /
-   `routine-mattutina.md`, nel formato della sezione 7 di CLAUDE.md: numero
+   `routine-mattutina.md`, nel formato della sezione 7 di Allenamento.md: numero
    d'ordine, nome, figura, tabella, i quattro paragrafi, link video.
 2. **La tabella-indice** — la riga va aggiunta o tolta anche lì: quella del
    blocco per la forza, quella della routine per la mattutina (quanto, cue,
@@ -358,7 +358,7 @@ Tre cose da ricordare, sono quelle che si rompono:
 - **Il conteggio del §5.4** va aggiornato quando cambia. È l'unica riga di
   questo piano che segue le schede: correggila senza chiedere.
 
-Regola di CLAUDE.md sezione 8, che vale sempre: il programma cresce in
+Regola di Allenamento.md sezione 8, che vale sempre: il programma cresce in
 difficoltà, non in lunghezza. Se ti chiedo di aggiungere un esercizio senza
 dirti cosa tolgo, chiedimelo tu — il tempo è fisso.
 
