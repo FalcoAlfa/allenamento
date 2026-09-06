@@ -114,14 +114,16 @@ const salvaIn = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } 
 const storico = () => leggi("sedute", []);
 
 /* Gli esercizi chiave: campo di fine seduta -> esercizi che lo allenano.
-   Trazioni e plank frontale non stanno in nessuna seduta (§6 del PIANO): restano
-   voci della tabella dei test, si compilano a mano. */
+   Le trazioni non stanno in nessuna seduta (§6 del PIANO): restano voce della
+   tabella dei test, si compila a mano. Il plank frontale invece ci e' entrato
+   il 05/09/2026 come A6, quindi da li' si registra come gli altri. */
 const CHIAVE = [
   { id: "dead_hang_s", eti: "Dead hang (s)", log: "dead hang", u: " s", k: ["comune:R5", "M:dead-hang"] },
   { id: "negativa_s", eti: "Negativa, s di discesa", log: "negativa", u: " s", k: ["B:B3"] },
   { id: "piegamenti", eti: "Piegamenti (ripetizioni)", log: "piegamenti", u: "", k: ["A:A4"] },
   { id: "l_sit_s", eti: "L-sit raccolto (s)", log: "L-sit", u: " s", k: ["A:A1", "B:B1"] },
   { id: "crow_s", eti: "Crow (s)", log: "crow", u: " s", k: ["A:A2"] },
+  { id: "plank_s", eti: "Plank frontale (s)", log: "plank", u: " s", k: ["A:A6"] },
   { id: "mani_muro_cm", eti: "Mani-muro (cm)", log: "mani-muro", u: " cm", k: ["A:A3"] },
 ];
 
@@ -685,6 +687,13 @@ function autotest() {
   ok(m1.filter(p => p.nome === "Chin tuck").length === 6, "chin tuck: 6 tenute");
   ok(m1.filter(p => p.nome === "Stretch del collo").length === 2, "stretch del collo: due lati");
 
+  // CHIAVE punta alle schede per sigla: se una scheda viene rinumerata o tolta,
+  // il campo di fine seduta sparisce in silenzio e il numero non si registra piu'
+  for (const c of CHIAVE)
+    for (const k of c.k)
+      ok(DATI.esercizi[k], `${c.id} punta a ${k}, che non esiste piu' nelle schede`);
+  ok(new Set(costruisciPassi("A").map(p => p.k)).has("A:A6"), "il plank frontale sta in A");
+
   // le note scritte durante la seduta arrivano nella nota del giorno, da sole se serve
   const soloEs = nota([{ data: "2026-09-05", sessione: "A", note: "", note_es: { A1: "spalle su" } }]);
   ok(soloEs.includes("Esercizio per esercizio"), "sezione presente");
@@ -697,7 +706,9 @@ function autotest() {
     tipo: "forza", sessione: "B", durata_s: 60, saltati: [], chiave: {}, sensazione: "🟢", note: "" }));
   const nuove = bloccoJson(fake(2), false, 9);
   ok(nuove.includes("aggiungile in fondo") && !nuove.includes("sostituisci"), "Esporta: solo le nuove");
-  ok(nuove.trim().split("\n").length === 3, "2 sedute nuove = intestazione + 2 righe JSON");
+  // conta le righe JSON, non le righe totali: l'intestazione ha una riga vuota
+  // sotto, e contarle tutte rompeva l'assert a ogni ritocco del formato
+  ok(nuove.split("\n").filter(r => r.startsWith("{")).length === 2, "2 sedute nuove = 2 righe JSON");
   ok(bloccoJson(fake(9), true, 9).includes("sostituisci il file"), "Esporta tutto: file intero");
 
   // il countdown aspetta il tap, il riposo no
