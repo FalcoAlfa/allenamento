@@ -113,19 +113,33 @@ const leggi = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d;
 const salvaIn = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 const storico = () => leggi("sedute", []);
 
-/* Gli esercizi chiave: campo di fine seduta -> esercizi che lo allenano.
-   Le trazioni non stanno in nessuna seduta (§6 del PIANO): restano voce della
-   tabella dei test, si compila a mano. Il plank frontale invece ci e' entrato
-   il 05/09/2026 come A6, quindi da li' si registra come gli altri. */
+/* Gli esercizi chiave. Due usi, e l'ordine conta per il secondo:
+   - `k` = campo di fine seduta -> esercizi che lo allenano. Le trazioni non
+     stanno in nessuna seduta (§6 del PIANO), quindi `k` vuoto: niente campo a
+     fine seduta. Il plank frontale invece ci e' entrato il 05/09/2026 come A6.
+   - la lista intera e' la modalita' Test, e segue **l'ordine delle colonne
+     della tabella "Test di riferimento" del diario**. Se cambia una colonna
+     li', cambia qui. */
 const CHIAVE = [
   { id: "dead_hang_s", eti: "Dead hang (s)", log: "dead hang", u: " s", k: ["comune:R5", "M:dead-hang"] },
+  { id: "trazioni", eti: "Trazioni (ripetizioni)", log: "trazioni", u: "", k: [] },
   { id: "negativa_s", eti: "Negativa, s di discesa", log: "negativa", u: " s", k: ["B:B3"] },
   { id: "piegamenti", eti: "Piegamenti (ripetizioni)", log: "piegamenti", u: "", k: ["A:A4"] },
+  { id: "plank_s", eti: "Plank frontale (s)", log: "plank", u: " s", k: ["A:A6"] },
   { id: "l_sit_s", eti: "L-sit raccolto (s)", log: "L-sit", u: " s", k: ["A:A1", "B:B1"] },
   { id: "crow_s", eti: "Crow (s)", log: "crow", u: " s", k: ["A:A2"] },
-  { id: "plank_s", eti: "Plank frontale (s)", log: "plank", u: " s", k: ["A:A6"] },
   { id: "mani_muro_cm", eti: "Mani-muro (cm)", log: "mani-muro", u: " cm", k: ["A:A3"] },
 ];
+
+/* Il test e' dovuto ogni 4 settimane. Senza nessun test registrato e' dovuto
+   subito: e' il caso vero del primo giro, non un difetto. */
+const OGNI = 28;
+const nonTest = recs => recs.filter(r => r.tipo !== "test");
+const giorniDa = d => Math.floor((Date.parse(oggi()) - Date.parse(d)) / 864e5);
+const giorniDaTest = st => {
+  const u = [...st].reverse().find(r => r.tipo === "test");
+  return u ? giorniDa(u.data) : null;
+};
 
 const PARAGRAFI = [["come", "Come si fa"], ["attenzione", "Attenzione a"],
                    ["sfruttare", "Per sfruttarlo al meglio"], ["progredire", "Come progredire"],
@@ -221,9 +235,23 @@ function vaiHome() {
       <div class="riga"><button data-a="riprendi">Riprendi</button>
       <button data-a="butta">Butta via</button></div></div>`;
 
+  // il promemoria sta qui e non altrove: la home e' l'unica schermata che apre
+  // tutti i giorni, quindi e' l'unico posto dove un test ogni 4 settimane si
+  // ricorda da solo senza notifiche (§10)
+  const gt = giorniDaTest(st), dovuto = gt === null || gt >= OGNI;
+  if (dovuto) {
+    const r = gt === null ? null : gt - OGNI;
+    h += `<div class="card"><b>Test di riferimento</b>
+      <p class="spento">${r === null ? "Mai fatto dentro l'app."
+        : r === 0 ? "Tocca oggi." : `In ritardo di ${r} ${r === 1 ? "giorno" : "giorni"}.`}
+      A muscoli riposati, solo il riscaldamento prima.</p>
+      <button class="grande primario" data-a="test">Fai il test</button></div>`;
+  }
+
   h += bottone(p.m, `Mattutina (${p.m})`) + bottone(p.f, `Forza (${p.f})`);
-  h += `<p><button class="piccolo" data-a="altre">scegli un'altra</button></p>
-        <div id="altre" hidden class="riga">` +
+  h += `<p><button class="piccolo" data-a="altre">scegli un'altra</button>` +
+    (dovuto ? "" : ` <button class="piccolo" data-a="test">Test · fra ${OGNI - gt} giorni</button>`) +
+    `</p><div id="altre" hidden class="riga">` +
     Object.keys(DATI.sedute).map(n =>
       `<button class="piccolo" data-a="apri" data-v="${n}">${n}</button>`).join("") + `</div>`;
 
@@ -234,10 +262,13 @@ function vaiHome() {
   if (st.length) {
     // ogni riga porta il suo indice: la lista e' rovesciata, l'indice no
     const righe = st.map((s, i) => ({ s, i }));
+    // il test non ha durata ne' saltati: senza questo ramo la riga si rompe
+    const voce = s => s.tipo === "test" ? "Test di riferimento"
+      : `${s.tipo === "forza" ? "Forza " : ""}${s.sessione} · ${Math.round(s.durata_s / 60)} min ${s.sensazione || ""}` +
+        (s.saltati.length ? ` · saltati: ${s.saltati.map(g => esc(nomeDi(s.sessione, g))).join(", ")}` : "");
     h += `<h2>Ultime sedute</h2>` +
       (tutte ? righe : righe.slice(-6)).reverse().map(({ s, i }) =>
-        `<div class="voce"><span>${ggmm(s.data)} · ${s.tipo === "forza" ? "Forza " : ""}${s.sessione} · ${Math.round(s.durata_s / 60)} min ${s.sensazione || ""}` +
-        (s.saltati.length ? ` · saltati: ${s.saltati.map(g => esc(nomeDi(s.sessione, g))).join(", ")}` : "") +
+        `<div class="voce"><span>${ggmm(s.data)} · ${voce(s)}` +
         (s.esportata ? "" : " · <b>da esportare</b>") +
         `</span><button class="piccolo" data-a="copiauna" data-v="${i}">copia</button>` +
         `<button class="piccolo" data-a="elimina" data-v="${i}">elimina</button></div>`).join("");
@@ -509,10 +540,78 @@ function salvaFine() {
     `<p class="card"><b>Salvata.</b> Quando puoi, premi <i>Esporta</i> e incolla il testo in chat.</p>`);
 }
 
+/* ------------------------------------------------------------ modalita' test
+
+   Il test di riferimento e' una seduta a sé (§11.2): niente passi, niente
+   cronometro — i secondi li misura lui col telefono come ha sempre fatto —
+   solo gli otto numeri della tabella del diario, nel loro ordine. */
+
+function schermoTest() {
+  fermaTimer(); S = null;
+  const pre = [...storico()].reverse().find(r => r.tipo === "test");
+  const prima = c => {
+    const v = pre && pre.chiave ? pre.chiave[c.id] : undefined;
+    if (v === undefined) return "";
+    const p = c.id === "trazioni" && pre.presa ? " " + pre.presa : "";
+    return ` <span class="spento">· ${ggmm(pre.data)}: ${v}${c.u}${p}</span>`;
+  };
+
+  SCH.innerHTML = `<h1>Test di riferimento</h1>
+  <p class="spento">A muscoli riposati, solo il riscaldamento prima.
+     Vuoto = non misurato.</p>
+  ${CHIAVE.map(c => `<label for="t_${c.id}">${c.eti}${prima(c)}</label>
+    <input id="t_${c.id}" type="number" inputmode="numeric" step="any" min="0">` +
+    (c.id === "trazioni" ? `<label for="t_presa">Presa delle trazioni (e della negativa)</label>
+      <select id="t_presa"><option value="sup">supina (sup)</option>
+      <option value="pro">prona (pro)</option></select>` : "")).join("")}
+  <label for="t_note">Nota</label>
+  <textarea id="t_note" rows="3" placeholder="Solo se c'è qualcosa da dire."></textarea>`;
+
+  FONDO.innerHTML = `<button data-a="home">Annulla</button>
+    <button class="primario" data-a="salvatest">Salva</button>`;
+  if (pre && pre.presa) $("#t_presa").value = pre.presa;
+}
+
+function salvaTest() {
+  const chiave = {};
+  for (const c of CHIAVE) {
+    const n = $("#t_" + c.id);
+    if (n && n.value !== "") chiave[c.id] = Number(n.value);
+  }
+  // salvare un test vuoto azzererebbe il conto delle 4 settimane per niente
+  if (!Object.keys(chiave).length) return alert("Non hai scritto nessun numero.");
+  const st = storico();
+  st.push({ data: oggi(), tipo: "test", chiave,
+            presa: $("#t_presa").value, note: $("#t_note").value.trim() });
+  salvaIn("sedute", st);
+  vaiHome();
+  SCH.insertAdjacentHTML("afterbegin",
+    `<p class="card"><b>Test salvato.</b> Quando puoi, premi <i>Esporta</i> e incolla il testo in chat.</p>`);
+}
+
+/* Una riga della tabella "Test di riferimento": le colonne sono `CHIAVE` nel
+   suo ordine. Due intestazioni portano gia' l'unita' (`Negativa (s)`,
+   `Mani-muro (cm)`), quindi in quelle celle non si ripete. */
+const U_NELL_INTESTAZIONE = new Set(["negativa_s", "mani_muro_cm"]);
+
+function rigaTest(r) {
+  const cella = c => {
+    const v = r.chiave[c.id];
+    if (v === undefined) return "";
+    return v + (U_NELL_INTESTAZIONE.has(c.id) ? "" : c.u) +
+      (c.id === "trazioni" && r.presa ? " " + r.presa : "");
+  };
+  return `| ${ggmm(r.data)} | ${CHIAVE.map(cella).join(" | ")} |`;
+}
+
 /* --------------------------------------------------------------- export */
 
 /* Una riga per giorno: la tabella del diario ha sia Sessione sia Mattutina. */
 function rigaLog(recs) {
+  // il test ha la sua tabella: se capita nello stesso giorno di una seduta,
+  // i suoi numeri non devono finire qui dentro
+  recs = nonTest(recs);
+  if (!recs.length) return "";
   const forza = recs.filter(r => r.tipo === "forza").pop();
   const matt = recs.filter(r => r.tipo === "mattutina").pop();
   const numeri = [];
@@ -570,22 +669,36 @@ const bloccoJson = (righe, tutto, n) =>
 function testoExport(tutto, solo) {
   const st = storico();
   const scelte = solo != null ? [st[solo]] : st.filter(r => tutto || !r.esportata);
-  const date = [...new Set(scelte.map(r => r.data))].sort();
-  if (!date.length) return "Niente da esportare: tutte le sedute sono già state incollate.";
+  if (!scelte.length) return "Niente da esportare: tutte le sedute sono già state incollate.";
   // La riga e' per giorno e l'export dice "sostituiscila": va ricomposta da
   // tutte le sedute di quel giorno, anche gia' esportate, o ne perdi una meta'.
   const delGiorno = d => (solo != null ? scelte : st).filter(r => r.data === d);
+  const test = scelte.filter(r => r.tipo === "test");
+  const sedute = nonTest(scelte), tutteSedute = nonTest(st);
+  const date = [...new Set(sedute.map(r => r.data))].sort();
+  const giorni = [...new Set(scelte.map(r => r.data))].sort();   // le note: anche quelle dei test
 
-  let t = `Sedute da registrare nel diario (${date.length} ${date.length === 1 ? "giorno" : "giorni"}).\n` +
-    `Se una riga con la stessa data esiste già nel diario, sostituiscila.\n\n` +
-    `--- diario/diario.md · tabella "Log delle sedute" ---\n\n`;
-  for (const d of date) t += rigaLog(delGiorno(d)) + "\n";
+  let t = "";
+  if (test.length)
+    t += `Test di riferimento da registrare (${test.length}).\n` +
+      `Se una riga con la stessa data esiste già nella tabella, sostituiscila.\n\n` +
+      `--- diario/diario.md · tabella "Test di riferimento" ---\n\n` +
+      test.map(rigaTest).join("\n") + "\n\n";
 
-  for (const d of date) {
+  if (date.length) {
+    t += `Sedute da registrare nel diario (${date.length} ${date.length === 1 ? "giorno" : "giorni"}).\n` +
+      `Se una riga con la stessa data esiste già nel diario, sostituiscila.\n\n` +
+      `--- diario/diario.md · tabella "Log delle sedute" ---\n\n`;
+    for (const d of date) t += rigaLog(delGiorno(d)) + "\n";
+  }
+
+  for (const d of giorni) {
     const n = nota(delGiorno(d));
     if (n) t += `\n--- diario/${d}.md ---\n\n${n}`;
   }
-  t += bloccoJson(tutto ? st : scelte, tutto, st.length);
+  // il test ha la sua tabella e non entra nel JSONL: due posti per lo stesso
+  // dato sono due posti che possono divergere, e `riepilogo.py` resta com'e'
+  if (sedute.length) t += bloccoJson(tutto ? tutteSedute : sedute, tutto, tutteSedute.length);
   return t;
 }
 
@@ -606,7 +719,8 @@ function esporta(tutto, solo) {
 function elimina(i) {
   const st = storico(), r = st[Number(i)];
   if (!r) return;
-  if (!confirm(`Elimino la seduta del ${ggmm(r.data)} (${r.sessione})?\nNon si torna indietro.`)) return;
+  const che = r.tipo === "test" ? "il test di riferimento" : `la seduta ${r.sessione}`;
+  if (!confirm(`Elimino ${che} del ${ggmm(r.data)}?\nNon si torna indietro.`)) return;
   st.splice(Number(i), 1);
   salvaIn("sedute", st);
   vaiHome();
@@ -630,6 +744,8 @@ const AZIONI = {
   fastidio: () => { $("#boxfastidio").hidden = !$("#hafastidio").checked; },
   riprendifine: () => { avviaTimer(); entra(S.i); },
   salvafine: salvaFine,
+  test: schermoTest,
+  salvatest: salvaTest,
   esporta: () => esporta(false),
   esportatutto: () => esporta(true),
   copiauna: i => esporta(false, Number(i)),
@@ -732,6 +848,34 @@ function autotest() {
   // "copia" su una seduta sola: la riga esce con l'altra colonna vuota
   const sola = rigaLog([{ data: "2026-08-18", tipo: "mattutina", sessione: "M2", chiave: {}, sensazione: "🟢", saltati: [] }]);
   ok(sola === "| 18/08 |  | M2 |  | 🟢 |", sola);
+
+  // --- modalita' test ---
+  // le colonne della riga sono CHIAVE nel suo ordine: se qualcuno riordina
+  // l'array, i numeri finiscono nella colonna sbagliata e nessuno se ne accorge
+  const rt = { data: "2026-09-13", tipo: "test", presa: "sup",
+    chiave: { dead_hang_s: 12, trazioni: 1, negativa_s: 4, piegamenti: 10,
+              plank_s: 35, l_sit_s: 3, crow_s: 2, mani_muro_cm: 25 } };
+  ok(rigaTest(rt) === "| 13/09 | 12 s | 1 sup | 4 | 10 | 35 s | 3 s | 2 s | 25 |", rigaTest(rt));
+  const vuota = rigaTest({ data: "2026-09-13", chiave: { piegamenti: 10 } });
+  ok(vuota.split("|").length === 11, "9 colonne anche con i campi vuoti: " + vuota);
+  ok(vuota.includes("| 10 |"), "il campo scritto e' nella sua colonna: " + vuota);
+  ok(CHIAVE.find(c => c.id === "trazioni").k.length === 0,
+     "le trazioni non stanno in nessuna seduta: nessun campo di fine seduta");
+
+  // un test nello stesso giorno di una seduta non deve sporcare la riga di log
+  const mista = rigaLog([{ data: "2026-09-13", tipo: "forza", sessione: "A",
+    chiave: { piegamenti: 9 }, sensazione: "🟢", saltati: [] }, rt]);
+  ok(mista.startsWith("| 13/09 | A |  |") && !mista.includes("dead hang"), mista);
+  ok(rigaLog([rt]) === "", "un giorno di solo test non fa riga di log");
+  ok(nonTest([rt]).length === 0, "il test resta fuori dal JSONL");
+
+  // il promemoria in home: senza test registrati e' dovuto, ed e' l'ultimo test
+  // che conta, non l'ultima seduta
+  const faGiorni = n => new Date(Date.now() - n * 864e5).toISOString().slice(0, 10);
+  ok(giorniDaTest([]) === null, "nessun test registrato");
+  ok(giorniDaTest([{ tipo: "test", data: oggi() }]) === 0, "fatto oggi");
+  ok(giorniDaTest([{ tipo: "test", data: faGiorni(30) }, { tipo: "forza", data: faGiorni(2) }]) === 30,
+     "conta l'ultimo test, non l'ultima seduta");
 
   ok(nomeDi("A", "A1") === "L-sit" && nomeDi("A", "Z9").includes("non più"), "sigle sparite");
   return "test ok";
