@@ -181,7 +181,7 @@ Il build fallisce, con messaggio esplicito, se:
   sbagliato io a scrivere la scheda).
 
 A build riuscito stampa il conteggio: `M1 8 · M2 8 · M3 8 · A 17 · B 17 ·
-figure 38`. È il modo più veloce di accorgersi che si è rotto qualcosa.
+figure 39`. È il modo più veloce di accorgersi che si è rotto qualcosa.
 
 ---
 
